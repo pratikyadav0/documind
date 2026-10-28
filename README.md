@@ -1,259 +1,252 @@
-# DocuMind: Document Q&A Assistant
+# DocuMind — Document Q&A Assistant
 
-DocuMind lets you upload a **PDF or TXT** file and ask questions about it. It finds the passages
-most relevant to your question and shows them as sources, with page numbers for PDFs.
-If you add an Anthropic API key, Claude writes the answer using only those passages.
-Without a key, DocuMind runs in **demo mode**, which needs no key and makes no AI calls.
+DocuMind is a document question-answering application that lets users upload PDF and TXT files, ask questions about their content, and view relevant source passages with page references.
 
-Built with Python 3.11+, FastAPI, Pydantic, pypdf, SQLite, the Anthropic Python SDK,
-plain HTML/CSS/JavaScript, and pytest. It is a learning and portfolio project for a single local user.
+The application uses keyword-based retrieval to find relevant document excerpts. With an Anthropic API key, Claude generates answers using the retrieved passages. Without an API key, the application runs in demo mode without making AI API calls.
 
-> New to running Python projects on Windows? Read [SETUP_GUIDE.md](SETUP_GUIDE.md).
-> For a checklist of what has and has not been verified, read [PROJECT_CHECKLIST.md](PROJECT_CHECKLIST.md).
-
----
+Built as a learning and portfolio project using Python, FastAPI, SQLite, and HTML, CSS, and JavaScript.
 
 ## Features
 
-- Upload `.pdf` and `.txt` files from a web page, and see the stored documents and their sizes.
-- Validation before any processing: file type, file signature, size limit, empty files, binary data,
-  non-UTF-8 text, PDFs with no extractable text, damaged PDFs, and password-protected PDFs.
-- Safe file names: folder parts such as `..\..\` are removed, and the file name is only ever stored as text.
-- Duplicate detection: uploading the exact same file again returns a 409 error instead of storing it twice.
-- Text extraction with page numbers for PDFs.
-- Overlapping chunks (configurable size and overlap). A chunk never spans two PDF pages.
-- **Keyword retrieval**: chunks are ranked by shared words, with rare words weighted higher.
-  This is not semantic search and does not use embeddings or a vector database.
-- Answers in Claude mode are generated from the retrieved excerpts only. The system prompt treats the document text as untrusted.
-- Source excerpts, page references, and a clear label for demo answers.
-- Health check, upload, list, delete one, delete all, and ask endpoints.
-- Automated tests that use fake Claude clients, so no paid API calls are needed.
+- Upload PDF and TXT documents through a web interface.
+- Extract text from PDFs with page references.
+- Split documents into overlapping text chunks.
+- Retrieve relevant passages using keyword-based ranking.
+- Generate answers using Claude when configured.
+- Run in demo mode without an API key.
+- Display source excerpts and page references alongside answers.
+- Validate file types, file sizes, empty files, and unreadable documents.
+- Detect duplicate uploads.
+- Delete individual documents or clear all stored documents.
+- Provide REST API endpoints with validation and readable error responses.
+- Run automated tests using pytest without making paid API calls.
 
-## Architecture and request flow
+## Tech Stack
 
-```mermaid
-flowchart LR
-    Browser["Browser<br/>HTML / CSS / JavaScript"] -->|"JSON and file upload"| Routes["routes.py<br/>FastAPI endpoints"]
-    Routes --> Validate["extraction.py<br/>validate and extract text"]
-    Validate --> Chunk["chunking.py<br/>overlapping chunks"]
-    Chunk --> Store[("storage.py<br/>SQLite file")]
-    Routes -->|"question"| Retrieve["retrieval.py<br/>keyword ranking"]
-    Store --> Retrieve
-    Retrieve -->|"top passages"| LLM{"llm.py"}
-    LLM -->|"API key set"| Claude["Claude API<br/>via Anthropic SDK"]
-    LLM -->|"no key, or DEMO_MODE=true"| Demo["Demo answerer<br/>no network call"]
-    Claude --> Routes
-    Demo --> Routes
-    Config["config.py<br/>environment and .env"] -.-> Routes
-    Config -.-> LLM
-    Startup["application.py<br/>create_app()"] -.-> Routes
-```
+- **Language:** Python 3.11+
+- **Backend:** FastAPI, Pydantic
+- **AI Integration:** Anthropic API
+- **Document Processing:** pypdf
+- **Database:** SQLite
+- **Frontend:** HTML, CSS, JavaScript
+- **Testing:** pytest
 
-Example request flow for a question: the browser sends `POST /api/ask` → FastAPI checks the JSON →
-the store loads the chunks → the retriever picks the best `TOP_K` chunks → the answerer (Claude or demo)
-produces the answer → the route returns the answer and its sources as JSON.
+## Architecture
 
-## Folder structure
+The application follows a modular structure that separates API routes, document processing, retrieval, answer generation, and storage.
+
+### Request Flow
+
+1. The user uploads a PDF or TXT document.
+2. The backend validates the file and extracts its text.
+3. The extracted text is divided into overlapping chunks.
+4. The chunks and document metadata are stored in SQLite.
+5. When a question is submitted, the retriever ranks relevant chunks using keyword matching.
+6. The answerer returns a demo response or uses Claude to generate an answer from the retrieved excerpts.
+7. The response includes the answer and its source passages.
+
+## Project Structure
 
 ```text
 documind/
 ├── app/
-│   ├── application.py   # startup: builds the app, database, retriever, and answerer
-│   ├── main.py          # entry point for uvicorn (app.main:app)
-│   ├── config.py        # settings from environment variables and .env
-│   ├── errors.py        # error types that carry an HTTP status code
-│   ├── schemas.py       # Pydantic request and response models
-│   ├── routes.py        # HTTP endpoints
-│   ├── extraction.py    # file-name cleaning, validation, PDF and TXT text extraction
-│   ├── chunking.py      # overlapping chunks that keep page numbers
-│   ├── retrieval.py     # keyword ranking
-│   ├── llm.py           # Claude answerer, demo answerer, system prompt, error mapping
-│   └── storage.py       # SQLite tables, duplicate lookup, delete and clear
+│   ├── application.py
+│   ├── main.py
+│   ├── config.py
+│   ├── errors.py
+│   ├── schemas.py
+│   ├── routes.py
+│   ├── extraction.py
+│   ├── chunking.py
+│   ├── retrieval.py
+│   ├── llm.py
+│   └── storage.py
 ├── static/
-│   ├── index.html       # the web page
-│   ├── app.js           # browser logic; calls /api only, never sees the key
-│   └── styles.css       # responsive styling
+│   ├── index.html
+│   ├── app.js
+│   └── styles.css
 ├── sample_data/
-│   └── synthetic_company_handbook.txt   # fictional document for trying the app
-├── tests/               # pytest tests (fake Claude clients, temporary databases)
-├── .env.example         # placeholders only; copy to .env
+│   └── synthetic_company_handbook.txt
+├── tests/
+├── .env.example
 ├── .gitignore
 ├── pytest.ini
 ├── requirements.txt
-├── LICENSE              # MIT
+├── LICENSE
 ├── README.md
-├── SETUP_GUIDE.md       # step-by-step Windows and VS Code guide, with troubleshooting
-└── PROJECT_CHECKLIST.md # what has been verified, and how
+├── SETUP_GUIDE.md
+└── PROJECT_CHECKLIST.md
 ```
 
-## Quick start (Windows PowerShell)
+## Getting Started
 
-From the project folder:
+### Prerequisites
+
+- Python 3.11 or newer
+- Visual Studio Code (recommended)
+- Git (optional, for cloning the repository)
+
+### Installation on Windows
+
+**1. Clone the repository**
+
+```powershell
+git clone https://github.com/pratikyadav0/documind.git
+cd documind
+```
+
+
+Alternatively, download the repository ZIP and extract it.
+
+**2. Create a virtual environment**
 
 ```powershell
 python -m venv .venv
+```
+
+**3. Activate the virtual environment**
+
+```powershell
 .\.venv\Scripts\Activate.ps1
+```
+
+If PowerShell blocks activation, refer to `SETUP_GUIDE.md` for troubleshooting.
+
+**4. Install dependencies**
+
+```powershell
 python -m pip install -r requirements.txt
+```
+
+**5. Configure environment variables**
+
+```powershell
 Copy-Item .env.example .env
+```
+
+Demo mode works without a real API key. To enable Claude mode, open `.env` and configure your Anthropic API key.
+
+
+**6. Start the application**
+
+```powershell
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Open <http://127.0.0.1:8000>. Without a real API key, the badge says **Demo mode (no AI calls)**.
-If `Activate.ps1` is blocked, see the troubleshooting section of `SETUP_GUIDE.md`.
+**7. Open the application**
+
+Visit [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser.
+
+Interactive API documentation is available at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) while the server is running.
+
+For detailed Windows and VS Code instructions, see `SETUP_GUIDE.md`.
 
 ## Configuration
 
-Settings come from environment variables. A local `.env` file is loaded automatically if it exists.
-A missing `.env` is fine: every setting has a default.
+The application reads configuration from environment variables, with optional values loaded from `.env`.
 
-| Variable | Default | Required? | Purpose |
-|---|---|---|---|
-| `ANTHROPIC_API_KEY` | *(empty)* | Only for Claude mode | Your API key. Empty or the placeholder value means demo mode. |
-| `ANTHROPIC_MODEL` | `claude-haiku-5-5` | No | Model ID sent to the API. |
-| `ANTHROPIC_TIMEOUT_SECONDS` | `30` | No | Seconds to wait for Claude before a 504 error. |
-| `DEMO_MODE` | `false` | No | `true` forces demo mode even when a key is set. |
-| `MAX_UPLOAD_MB` | `5` | No | Largest accepted upload. The browser reads this value from the server. |
-| `CHUNK_SIZE` | `800` | No | Maximum characters per chunk. |
-| `CHUNK_OVERLAP` | `150` | No | Characters shared by neighbouring chunks. Must be smaller than `CHUNK_SIZE`. |
-| `TOP_K` | `4` | No | Number of passages used for each answer. |
-| `DATABASE_PATH` | `data/documind.db` | No | SQLite file. Relative paths start from the project folder. |
-| `LOG_LEVEL` | `INFO` | No | Logging level. |
+| Variable | Purpose |
+|---|---|
+| `ANTHROPIC_API_KEY` | Enables Claude mode when configured with a valid key |
+| `ANTHROPIC_MODEL` | Specifies the Anthropic model identifier |
+| `ANTHROPIC_TIMEOUT_SECONDS` | Sets the AI request timeout |
+| `DEMO_MODE` | Forces demo mode when set to `true` |
+| `MAX_UPLOAD_MB` | Sets the maximum upload size |
+| `CHUNK_SIZE` | Sets the maximum chunk size |
+| `CHUNK_OVERLAP` | Sets the overlap between chunks |
+| `TOP_K` | Sets the number of retrieved passages |
+| `DATABASE_PATH` | Specifies the SQLite database location |
+| `LOG_LEVEL` | Configures application logging |
 
-**Model ID:** `claude-haiku-5-5` was checked against Anthropic's model documentation
-(platform.claude.com, Claude Haiku 5.5 page), which lists it as the API identifier.
-If a future model is retired, change `ANTHROPIC_MODEL` in `.env`. An unknown model returns a clear error, not a guessed answer.
+Default values are defined in the application configuration. See `.env.example` for the available settings.
 
-## Demo mode and Claude mode
+## Demo Mode and Claude Mode
 
-| | Demo mode | Claude mode |
+**Demo mode**
+- Works without an API key.
+- Does not make calls to Anthropic.
+- Returns a relevant retrieved passage with a demo-mode label.
+- Is useful for testing the application locally.
+
+**Claude mode**
+- Requires a valid Anthropic API key.
+- Uses Claude to generate answers from retrieved document excerpts.
+- Returns source passages alongside the answer.
+- Reports AI service errors rather than silently substituting demo responses.
+
+Demo mode is intended to demonstrate retrieval functionality; it does not provide full AI-generated answers.
+
+## API Endpoints
+
+| Method | Endpoint | Description |
 |---|---|---|
-| When it runs | No API key, or `DEMO_MODE=true` | `ANTHROPIC_API_KEY` is set and `DEMO_MODE` is not `true` |
-| Network calls to Anthropic | None | One per question |
-| Answer source | Top passage, quoted with a `DEMO MODE` label | Claude, using only the excerpts |
-| Health `mode` value | `demo` | `claude` |
+| GET | `/api/health` | Check application status and mode |
+| POST | `/api/documents` | Upload a PDF or TXT document |
+| GET | `/api/documents` | List stored document metadata |
+| DELETE | `/api/documents/{document_id}` | Delete a specific document |
+| DELETE | `/api/documents` | Delete all stored documents |
+| POST | `/api/ask` | Ask a question about uploaded documents |
 
-Claude mode never falls back to demo answers silently. If the API fails, the app returns an error message.
-Demo answers are not real answers: they show the best passage and do not summarize it.
-
-## API endpoints
-
-Interactive documentation: <http://127.0.0.1:8000/docs> (available while the server runs).
-
-| Method | Path | Purpose | Success | Error codes |
-|---|---|---|---|---|
-| GET | `/api/health` | Status, mode, version, upload limit, and model name (Claude mode only) | 200 | — |
-| POST | `/api/documents` | Upload one `.pdf` or `.txt` file (form field `file`) | 201 | 400 empty, 409 duplicate, 413 too large, 415 wrong type or content, 422 no readable text |
-| GET | `/api/documents` | List stored documents (metadata only, never the file) | 200 | — |
-| DELETE | `/api/documents/{document_id}` | Delete one document and all its chunks | 204 | 404 not found |
-| DELETE | `/api/documents` | Delete every document and chunk | 200 | — |
-| POST | `/api/ask` | Ask a question. JSON body: `question` (3–1000 characters), optional `document_ids` | 200 | 404 no documents or unknown id, 422 invalid input, 429/502/503/504 AI problems |
-
-Every error response has the form `{"detail": "a readable message"}`.
-
-### Example requests (PowerShell)
-
-```powershell
-# Health check
-curl.exe http://127.0.0.1:8000/api/health
-
-# Upload the sample document
-curl.exe -X POST -F "file=@sample_data/synthetic_company_handbook.txt" http://127.0.0.1:8000/api/documents
-
-# Ask a question (JSON body built with Invoke-RestMethod)
-$body = @{ question = "How many vacation days do employees get?" } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/ask -ContentType "application/json" -Body $body
-
-# Delete everything
-curl.exe -X DELETE http://127.0.0.1:8000/api/documents
-```
-
-## Retrieval approach and its limits
-
-- Words are lowercased, split apart, and stopwords such as "the" and "is" are removed.
-- Each chunk is scored by the query words it contains. Rare words count more, and a chunk's length is taken into account.
-- Ties are broken by document and chunk order, so results repeat exactly.
-- **Limits:** it matches words, not meanings. "Holiday" will not find "vacation" unless the text uses that word.
-  Synonyms, paraphrases, and questions in another language are not handled. Adding embeddings would require a new
-  retriever class with the same `rank` method; that is future work and is not implemented.
-
-## Security and privacy
-
-- The API key is read only on the server. It is never sent to the browser, never returned by any endpoint, and never written to the log.
-  Tests check that the key does not appear in API responses or in the messages sent to Claude.
-- Document text is untrusted. It is wrapped in tags, and the system prompt tells the model to ignore instructions inside it.
-  The sample file contains a deliberate "ignore your instructions" line to test this. The model's behaviour is not guaranteed; the rule is a
-  prompt-level defence, not a security boundary.
-- Uploaded file names are reduced to a safe display name and are never used as file paths. Tests cover `../` and `..\` names.
-- The browser inserts all document text with `textContent`, never as HTML.
-- Raw error text from the AI service is not shown to users. Known error types map to a short message naming the setting to check.
-
-**Limitations of the security measures:**
-
-- Designed for one person on their own computer. There is no login, no user accounts, and no per-user data separation.
-- No rate limiting, no HTTPS, and no protection against a determined attacker on the same network.
-  Do not expose this server to the public internet.
-- Stored data is not encrypted. Anyone with access to the `data/` folder can read the extracted text.
-
-## Data retention
-
-| What | Where | How long |
-|---|---|---|
-| Uploaded file bytes | Memory only, during the upload request | Discarded after text extraction |
-| File name, type, size, page count, upload time, SHA-256 fingerprint | `data/documind.db`, table `documents` | Until you delete the document |
-| Extracted text chunks, with page numbers | `data/documind.db`, table `chunks` | Until you delete the document |
-
-Deleting a document removes its rows, and then SQLite `VACUUM` rewrites the database file so the removed text is not left in free space.
-Deleting the `data/` folder also removes everything.
+FastAPI's interactive documentation at `/docs` allows you to explore and test these endpoints.
 
 ## Testing
+
+Run the automated test suite from the project root:
 
 ```powershell
 python -m pytest
 ```
 
-The tests cover: configuration with and without a key, invalid settings, file validation, file-name cleaning, PDF and TXT extraction,
-chunking, keyword ranking, insufficient evidence, Claude API errors (mocked), prompt-injection handling,
-every endpoint, database restart persistence, the duplicate and delete behaviour, and a check that the
-browser code calls routes that exist.
+The tests cover configuration, file validation, text extraction, chunking, retrieval, API endpoints, storage behaviour, duplicate detection, deletion, and mocked AI service interactions.
 
-Tests use temporary databases and never call the Anthropic API. The number of tests changes as the suite grows;
-run `python -m pytest` yourself to see the current result.
+Tests use fake Claude clients and temporary databases, so they do not require paid Anthropic API calls.
 
-## Known limitations and possible future work
+For the exact verification status, see `PROJECT_CHECKLIST.md`.
 
-- Keyword retrieval only; no embeddings or semantic search.
-- No OCR: scanned PDFs without a text layer are rejected.
-- PDF layout is simplified: tables and multi-column pages may be extracted in an odd order.
-- Password-protected PDFs are not supported.
-- Chunks are built from text with whitespace collapsed, so paragraph breaks are lost.
-- Every question loads all chunks of the selected documents into memory. Fine for a few documents; a larger collection needs an index.
-- Demo answers quote the top passage. For some questions that passage is the document header.
-- Single-user, local use only.
-- Browser behaviour was checked by reading and testing the code, not by clicking through the page in a real browser (see the checklist).
-- Possible next steps: embeddings with a vector index, PDF table extraction, authentication, and deployment with HTTPS.
+## Retrieval Approach and Limitations
+
+DocuMind currently uses keyword-based retrieval rather than semantic search.
+
+- Query terms are matched against document chunks.
+- Less common words receive greater weight.
+- Retrieved passages are used to generate or demonstrate answers.
+- PDF page references are retained for source attribution.
+
+Current limitations include:
+
+- No embedding-based semantic search or vector database.
+- Synonyms and paraphrased questions may not retrieve the expected passages.
+- Scanned PDFs without extractable text are not supported because OCR is not implemented.
+- Complex PDF layouts, tables, and multi-column pages may be extracted imperfectly.
+- Large document collections may require a more efficient retrieval index.
+
+## Security and Privacy
+
+- API keys are read on the backend and are not intentionally exposed to browser code.
+- Uploaded filenames are sanitized before being used as display names.
+- Document text is inserted into the interface as text rather than HTML.
+- Retrieved document content is treated as untrusted input when passed to the language model.
+- Uploaded file bytes are processed in memory during upload; extracted text and document metadata are stored in SQLite.
+
+**Important:** This project is designed for local, single-user use. It does not currently include authentication, user-specific access controls, rate limiting, or production-grade deployment security. Do not expose the development server to the public internet or use confidential documents without appropriate security controls.
+
+## Future Improvements
+
+Potential improvements include:
+
+- Semantic search using embeddings and a vector database.
+- OCR support for scanned PDFs.
+- Improved PDF table and layout extraction.
+- Authentication and access control.
+- More efficient indexing for larger document collections.
+- Production deployment with HTTPS and additional security controls.
 
 ## Troubleshooting
 
-The full troubleshooting section is in [SETUP_GUIDE.md](SETUP_GUIDE.md#common-errors-and-verified-fixes).
+If you encounter installation, dependency, environment configuration, or startup issues, refer to `SETUP_GUIDE.md`.
 
-## GitHub publication
-
-These commands are for you to run. Nothing is committed or pushed automatically.
-
-```powershell
-git init
-git status                        # check that .env, .venv/ and data/ are NOT listed
-git add .
-git status                        # check again before committing
-git commit -m "Initial commit: DocuMind document Q&A assistant"
-git branch -M main
-git remote add origin https://github.com/<your-github-username>/documind.git
-git push -u origin main
-```
-
-Replace `<your-github-username>` with your GitHub username. Before pushing, confirm that no file contains a real API key.
-The full steps are in `SETUP_GUIDE.md`.
+For information about tested functionality and outstanding limitations, see `PROJECT_CHECKLIST.md`.
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Replace `[Your Name]` in the license before publishing.
+This project is licensed under the MIT License. See the `LICENSE` file for details.
