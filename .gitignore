@@ -1,0 +1,26 @@
+# Secrets: never commit these
+.env
+.env.*
+!.env.example
+
+# Local data: uploads-derived text and databases stay on your machine
+data/
+*.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

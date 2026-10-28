@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DocuMind - Document Q&amp;A</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div>
+      <h1>DocuMind</h1>
+      <p class="tagline">Upload a PDF or TXT file, then ask questions about what it says.</p>
+    </div>
+    <span id="mode-badge" class="badge">Checking server...</span>
+  </header>
+
+  <main class="layout">
+    <section class="card" aria-labelledby="upload-title">
+      <h2 id="upload-title">1. Upload a document</h2>
+      <form id="upload-form">
+        <label for="file-input">Choose a PDF or TXT file</label>
+        <input id="file-input" type="file" accept=".pdf,.txt" required />
+        <button type="submit" id="upload-button">Upload</button>
+      </form>
+      <p id="upload-status" class="status" role="status"></p>
+
+      <h3>Stored documents</h3>
+      <ul id="document-list" class="document-list">
+        <li class="muted">No documents yet.</li>
+      </ul>
+      <button type="button" id="clear-button" class="secondary">Clear all documents</button>
+      <p class="privacy-note">
+        Only extracted text pieces are stored locally. The original file is discarded after upload.
+      </p>
+    </section>
+
+    <section class="card" aria-labelledby="ask-title">
+      <h2 id="ask-title">2. Ask a question</h2>
+      <form id="ask-form">
+        <label for="question-input">Your question</label>
+        <textarea id="question-input" rows="3" maxlength="1000"
+          placeholder="For example: How many vacation days do employees get?" required></textarea>
+        <button type="submit" id="ask-button">Ask</button>
+      </form>
+      <p id="ask-status" class="status" role="status"></p>
+
+      <div id="answer-panel" class="answer hidden">
+        <h3>Answer</h3>
+        <p id="answer-mode" class="mode-note"></p>
+        <div id="answer-text" class="answer-text"></div>
+        <h3>Sources</h3>
+        <ol id="source-list" class="source-list"></ol>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
